@@ -18,8 +18,8 @@ JPEG decoder used by the movie player.
 ## 2. Build
 
 ```sh
-git clone https://github.com/Cuppaxx/lsdr-wiiu.git
-cd lsdr-wiiu
+git clone https://github.com/Cuppaxx/LSD-Revamped-WiiU.git
+cd LSD-Revamped-WiiU
 python app/build.py
 ```
 
