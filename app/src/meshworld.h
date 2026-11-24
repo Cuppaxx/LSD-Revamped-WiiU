@@ -21,13 +21,16 @@ typedef struct {
 } MMat;
 
 typedef struct { float p[9]; float uv[6]; uint8_t c[12]; uint16_t mat; uint8_t flags, pad; } MWTri;   /* flags: 1 drawn, 2 solid */
-typedef struct { int cx, cz; float mn[3], mx[3]; int ntris, ndrawn; MWTri *tris; } MChunk;   /* drawn triangles first */
+/* drawn triangles first. ftris/nfar: the drawn triangles as baked, before the load-time split of big ones (render.c draws
+ * those for chunks past the classic view, where the split buys nothing); NULL = nothing was split, use tris */
+typedef struct { int cx, cz; float mn[3], mx[3]; int ntris, ndrawn; MWTri *tris; MWTri *ftris; int nfar; } MChunk;
 
 typedef struct {
   int loaded; float cell;
   int ntex; MTexture **tex;       /* entries of the global texture cache (shared by all mesh dreams, kept loaded) */
   int nmat; MMat *mat;
   int nchunks; MChunk *chunks; MWTri *tris; int ntris, ndrawn, nsolid;
+  MWTri *ftris; int nfar;         /* the unsplit drawn triangles of the chunks that had splits (MChunk.ftris points in here) */
   float bmin[3], bmax[3];
   int texset;
 } MeshWorld;

@@ -10,6 +10,7 @@
 typedef struct {
   const Dream *dream; int index;
   int n; LChunk *chunks; float *ox, *oz;
+  float (*box)[6];               /* per chunk: world box (min xyz, max xyz) of its tiles, for the view culling */
   LAtlas atlas; int texset;
   Env env; int env_group; SkyFx fx;
   WaterSet water;

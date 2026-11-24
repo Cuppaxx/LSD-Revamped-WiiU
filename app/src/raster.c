@@ -10,6 +10,7 @@ void raster_clear(Frame *f, uint32_t argb) {
   for (int i = 0; i < n; i++) { f->color[i] = argb; f->depth[i] = 0.0f; }
 }
 
+
 static inline int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
 static inline int clamp255(int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
 
@@ -22,7 +23,7 @@ static inline int clamp255(int v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
 #define PSPAN 8
 typedef struct { int on; float P0[3], gx[3], gy[3]; int bias; } Persp;
 static inline void persp_setup(Persp *p, const SVtx *t, const SVtx *m, const SVtx *b, float dym, float dyb, float dxm, float dxb, float inv, int bias) {
-  float qmin = fminf(t->q, fminf(m->q, b->q)), qmax = fmaxf(t->q, fmaxf(m->q, b->q));
+  float qmin = fmn(t->q, fmn(m->q, b->q)), qmax = fmx(t->q, fmx(m->q, b->q));
   p->on = qmin > 0 && qmax > qmin * 1.08f;
   if (!p->on) return;
   float A0[3] = { t->u * t->q, t->v * t->q, t->q }, Am[3] = { m->u * m->q, m->v * m->q, m->q }, Ab[3] = { b->u * b->q, b->v * b->q, b->q };
@@ -55,7 +56,7 @@ void raster_tri(Frame *f, const SVtx *a0, const SVtx *b0, const SVtx *c0, const 
   if (t->y > m->y) { tmp = t; t = m; m = tmp; }
   float area = (m->x - t->x) * (b->y - t->y) - (b->x - t->x) * (m->y - t->y);
   if (area > -0.5f && area < 0.5f) return;
-  int y0 = (int)ceilf(t->y - 0.5f), y1 = (int)ceilf(b->y - 0.5f) - 1;
+  int y0 = iceilf(fmx(t->y, -2.0f) - 0.5f), y1 = iceilf(fmn(b->y, (float)f->h + 2.0f) - 0.5f) - 1;
   if (y0 < ylo) y0 = ylo;
   if (y1 > yhi) y1 = yhi;
   if (y0 > y1) return;
@@ -85,7 +86,7 @@ void raster_tri(Frame *f, const SVtx *a0, const SVtx *b0, const SVtx *c0, const 
     float xa = t->x + sLong * (yc - t->y);
     float xb = yc < m->y ? t->x + sA * (yc - t->y) : m->x + sB * (yc - m->y);
     float xl = xa < xb ? xa : xb, xr = xa < xb ? xb : xa;
-    int xs = (int)ceilf(xl - 0.5f), xe = (int)ceilf(xr - 0.5f) - 1;
+    int xs = iceilf(fmx(xl, -2.0f) - 0.5f), xe = iceilf(fmn(xr, (float)f->w + 2.0f) - 0.5f) - 1;
     if (xs < 0) xs = 0;
     if (xe > f->w - 1) xe = f->w - 1;
     if (xs > xe) continue;
@@ -157,7 +158,7 @@ void raster_tri_tex(Frame *f, const SVtx *a0, const SVtx *b0, const SVtx *c0, co
   if (t->y > m->y) { tmp = t; t = m; m = tmp; }
   float area = (m->x - t->x) * (b->y - t->y) - (b->x - t->x) * (m->y - t->y);
   if (area > -0.5f && area < 0.5f) return;
-  int y0 = (int)ceilf(t->y - 0.5f), y1 = (int)ceilf(b->y - 0.5f) - 1;
+  int y0 = iceilf(fmx(t->y, -2.0f) - 0.5f), y1 = iceilf(fmn(b->y, (float)f->h + 2.0f) - 0.5f) - 1;
   if (y0 < ylo) y0 = ylo;
   if (y1 > yhi) y1 = yhi;
   if (y0 > y1) return;
@@ -186,14 +187,14 @@ void raster_tri_tex(Frame *f, const SVtx *a0, const SVtx *b0, const SVtx *c0, co
     float xa = t->x + sLong * (yc - t->y);
     float xb = yc < m->y ? t->x + sA * (yc - t->y) : m->x + sB * (yc - m->y);
     float xl = xa < xb ? xa : xb, xr = xa < xb ? xb : xa;
-    int xs = (int)ceilf(xl - 0.5f), xe = (int)ceilf(xr - 0.5f) - 1;
+    int xs = iceilf(fmx(xl, -2.0f) - 0.5f), xe = iceilf(fmn(xr, (float)f->w + 2.0f) - 0.5f) - 1;
     if (xs < 0) xs = 0;
     if (xe > f->w - 1) xe = f->w - 1;
     if (xs > xe) continue;
     float ox = (xs + 0.5f) - t->x, oy = yc - t->y;
     float iz = A0[0] + gx[0] * ox + gy[0] * oy;
-    int iu = (int)floorf((A0[1] + gx[1] * ox + gy[1] * oy) * 65536.0f);
-    int iv = (int)floorf((A0[2] + gx[2] * ox + gy[2] * oy) * 65536.0f);
+    int iu = ifloorf((A0[1] + gx[1] * ox + gy[1] * oy) * 65536.0f);
+    int iv = ifloorf((A0[2] + gx[2] * ox + gy[2] * oy) * 65536.0f);
     int ir = (int)((A0[3] + gx[3] * ox + gy[3] * oy) * 65536.0f);
     int ig = (int)((A0[4] + gx[4] * ox + gy[4] * oy) * 65536.0f);
     int ib = (int)((A0[5] + gx[5] * ox + gy[5] * oy) * 65536.0f);
@@ -246,17 +247,39 @@ void raster_tri_tex(Frame *f, const SVtx *a0, const SVtx *b0, const SVtx *c0, co
 
 /* ---------------------------------------------------------------- lists, bands, threads */
 
+void rlist_clear(RList *l) { l->n = 0; for (int b = 0; b < RBANDS_MAX; b++) l->bn[b] = 0; }
+
+/* the triangle and its bin entries, or nothing if memory runs out / the hard cap is reached (the triangle is dropped) */
 static RTri *list_add(Frame *f, const SVtx *a, const SVtx *b, const SVtx *c, int blend) {
   float mn = a->y, mx = a->y;
   if (b->y < mn) mn = b->y; if (c->y < mn) mn = c->y;
   if (b->y > mx) mx = b->y; if (c->y > mx) mx = c->y;
-  int ymin = (int)floorf(mn), ymax = (int)ceilf(mx);
+  int ymin = ifloorf(fmx(mn, -2.0f)), ymax = iceilf(fmn(mx, (float)f->h + 2.0f));
   if (ymax < 0 || ymin >= f->h) return NULL;
   RList *l = &f->lists[blend ? 1 : 0];
-  if (l->n == l->cap) { l->cap = l->cap ? l->cap * 2 : 4096; l->t = (RTri *)realloc(l->t, (size_t)l->cap * sizeof(RTri)); }
-  RTri *t = &l->t[l->n++];
+  if (l->n == l->cap) {
+    if (l->cap >= RLIST_MAX) return NULL;
+    int nc = l->cap ? l->cap * 2 : 4096; RTri *nt = (RTri *)realloc(l->t, (size_t)nc * sizeof(RTri));
+    if (!nt) return NULL;
+    l->t = nt; l->cap = nc;
+  }
+  int b0 = (ymin < 0 ? 0 : ymin) / RBAND_H, b1 = (ymax > f->h - 1 ? f->h - 1 : ymax) / RBAND_H;
+  if (b1 >= RBANDS_MAX) b1 = RBANDS_MAX - 1;
+  for (int k = b0; k <= b1; k++) if (l->bn[k] == l->bc[k]) {
+    int nc = l->bc[k] ? l->bc[k] * 2 : 1024; int *nb = (int *)realloc(l->bin[k], (size_t)nc * sizeof(int));
+    if (!nb) return NULL;
+    l->bin[k] = nb; l->bc[k] = nc;
+  }
+  int idx = l->n++;
+  for (int k = b0; k <= b1; k++) l->bin[k][l->bn[k]++] = idx;
+  RTri *t = &l->t[idx];
   t->v[0] = *a; t->v[1] = *b; t->v[2] = *c; t->ymin = ymin; t->ymax = ymax;
   return t;
+}
+
+void raster_attach(Frame *f, RList *opaque, RList *blend) {
+  if (f->natt >= RATT_MAX) return;
+  f->att[f->natt][0] = opaque; f->att[f->natt][1] = blend; f->natt++;
 }
 
 void raster_submit(Frame *f, const SVtx *a, const SVtx *b, const SVtx *c, const uint32_t *atlas, const WaterTex *wt, const uint8_t *pal, int blend) {
@@ -269,7 +292,7 @@ void raster_submit_tex(Frame *f, const SVtx *a, const SVtx *b, const SVtx *c, co
   t->atlas = NULL; t->wt = NULL; t->pal = NULL; t->tex = tex; t->va = va;
 }
 
-#define BAND_H 16
+#define BAND_H RBAND_H
 #define MAX_WORKERS 4
 static int nthreads = 1;
 static SDL_Thread *workers[MAX_WORKERS]; static SDL_sem *start_sem[MAX_WORKERS], *done_sem;
@@ -283,15 +306,18 @@ static void do_bands(void) {
     if (b >= nbands) break;
     int y0 = b * BAND_H, y1 = y0 + BAND_H - 1; if (y1 > f->h - 1) y1 = f->h - 1;
     if (job_pre) job_pre(f, y0, y1, job_ud);
-    for (int li = 0; li < 2; li++) {
-      const RList *l = &f->lists[li];
-      for (int i = 0; i < l->n; i++) {
-        const RTri *t = &l->t[i];
-        if (t->ymax < y0 || t->ymin > y1) continue;
-        if (t->tex) raster_tri_tex(f, &t->v[0], &t->v[1], &t->v[2], t->tex, t->va, y0, y1);
-        else raster_tri(f, &t->v[0], &t->v[1], &t->v[2], t->atlas, t->wt, t->pal, li, y0, y1);
+    if (b >= RBANDS_MAX) continue;
+    for (int li = 0; li < 2; li++)
+      for (int k = 0; k <= f->natt; k++) {                 /* the attached (thread) lists first, then the frame's own */
+        const RList *l = k < f->natt ? f->att[k][li] : &f->lists[li];
+        if (!l) continue;
+        const int *bin = l->bin[b]; int nb = l->bn[b];
+        for (int i = 0; i < nb; i++) {
+          const RTri *t = &l->t[bin[i]];
+          if (t->tex) raster_tri_tex(f, &t->v[0], &t->v[1], &t->v[2], t->tex, t->va, y0, y1);
+          else raster_tri(f, &t->v[0], &t->v[1], &t->v[2], t->atlas, t->wt, t->pal, li, y0, y1);
+        }
       }
-    }
   }
 }
 
@@ -340,5 +366,5 @@ void raster_render(Frame *f, BandPre pre, void *ud) {
   for (int i = 0; i < na - 1; i++) SDL_SemPost(start_sem[i]);
   do_bands();
   for (int i = 0; i < na - 1; i++) SDL_SemWait(done_sem);
-  f->lists[0].n = f->lists[1].n = 0;
+  rlist_clear(&f->lists[0]); rlist_clear(&f->lists[1]); f->natt = 0;
 }

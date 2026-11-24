@@ -33,7 +33,7 @@ screen.
 | `LUA_DIR` | Lua 5.2.3 sources, default `third_party/lua` (vendored) |
 | `LSDR_EXTRA_CFLAGS` | extra compiler flags, e.g. `-DLSDR_START_FILE=\"t.txt\" -DLSDR_LOG_NAME=\"t.log\"` for test builds |
 | `--out DIR` | output folder (default `build/`; objects in `build/obj/`) |
-| `--data PATH/data` | personal all-in-one build `build/lsdr.wuhb` with your data folder bundled (contains game data: do not share) |
+| `--data PATH/data` | all-in-one build `build/lsdr.wuhb` with your data folder bundled (contains game data, like the release) |
 | `--name NAME` | output file name |
 | `--jobs N` | parallel compiles (default: all cores) |
 | `--clean` | rebuild everything |

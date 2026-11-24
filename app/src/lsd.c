@@ -124,7 +124,7 @@ int lsd_load_chunk(const uint8_t *b, size_t len, LChunk *c) {
 }
 
 void lsd_free_chunk(LChunk *c) {
-  for (int i = 0; i < c->nmesh; i++) free(c->mesh[i].tris);
+  for (int i = 0; i < c->nmesh; i++) { free(c->mesh[i].tris); free(c->mesh[i].upos); free(c->mesh[i].uidx); }
   free(c->mesh); free(c->tiles); free(c->extra); memset(c, 0, sizeof *c);
 }
 

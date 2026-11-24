@@ -90,10 +90,10 @@ The app looks for every file in `SD:/wiiu/apps/lsdr/data/` first and then inside
 only contains the port's Lua API layer (`api.lua`); do not put an `api.lua` on the SD card (it would override the app's
 own, newer copy).
 
-### All-in-one wuhb (personal use only)
+### All-in-one wuhb
 
 If you prefer a single file, `python app/build.py --data build/data` bundles the data folder into `build/lsdr.wuhb`
-(~190 MB). That file contains game data: never share it. Movies are still read from the SD card only.
+(~190 MB). That is how the release `lsdr.wuhb` is made. Movies are still read from the SD card only.
 
 ## English text days
 
@@ -108,7 +108,7 @@ text <id>        the page id from specials.txt (e.g. 010D)
 end
 ```
 
-This repository does not ship a translation file; pass your own with `--texts-en`.
+The release ships an English translation of all 47 pages; the source repository does not include the file, so pass your own with `--texts-en` when building yourself.
 
 ## Updating
 

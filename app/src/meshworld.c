@@ -64,7 +64,7 @@ static void rtex_from(RTex *rt, const MTexture *t) {
 }
 
 /* ---------------------------------------------------------------- world.bin */
-void mw_free(MeshWorld *mw) { free(mw->tex); free(mw->mat); free(mw->chunks); free(mw->tris); memset(mw, 0, sizeof *mw); }
+void mw_free(MeshWorld *mw) { free(mw->tex); free(mw->mat); free(mw->chunks); free(mw->tris); free(mw->ftris); memset(mw, 0, sizeof *mw); }
 
 static void read_tri(Rd *r, MWTri *t) {
   t->mat = (uint16_t)u16_(r); t->flags = (uint8_t)u8_(r); u8_(r); t->pad = 0;
@@ -107,10 +107,12 @@ static void split_push(TriBuf *b, const MWTri *t, int depth) {
   split_push(b, &t1, depth + 1); split_push(b, &t2, depth + 1);
 }
 static void subdivide(MeshWorld *mw) {
-  TriBuf b = { 0, 0, 0 }; int *start = (int *)malloc(sizeof(int) * ((size_t)mw->nchunks + 1)), nsplit = 0;
-  if (!start) return;
+  TriBuf b = { 0, 0, 0 }, far = { 0, 0, 0 }; int *start = (int *)malloc(sizeof(int) * ((size_t)mw->nchunks + 1)), nsplit = 0;
+  int *fstart = (int *)malloc(sizeof(int) * ((size_t)mw->nchunks + 1)), *fn = (int *)calloc((size_t)mw->nchunks + 1, sizeof(int));
+  if (!start || !fstart || !fn) { free(start); free(fstart); free(fn); return; }
   for (int c = 0; c < mw->nchunks; c++) {
-    MChunk *ch = &mw->chunks[c]; start[c] = b.n;
+    MChunk *ch = &mw->chunks[c]; start[c] = b.n; int split0 = nsplit; fstart[c] = far.n;
+    for (int i = 0; i < ch->ntris; i++) if (ch->tris[i].flags & 1) { MWTri d = ch->tris[i]; d.flags = 1; push_tri(&far, &d); }
     for (int i = 0; i < ch->ntris; i++) {
       MWTri t = ch->tris[i]; int n0 = b.n;
       if (!(t.flags & 1)) { push_tri(&b, &t); continue; }
@@ -118,13 +120,16 @@ static void subdivide(MeshWorld *mw) {
       if (b.n - n0 == 1) b.t[b.n - 1].flags = t.flags;          /* not split: the triangle itself */
       else { nsplit++; if (t.flags & 2) { t.flags = 2; push_tri(&b, &t); } }
     }
+    if (nsplit == split0) far.n = fstart[c]; else fn[c] = far.n - fstart[c];   /* keep the unsplit copy only where it differs */
   }
   start[mw->nchunks] = b.n;
-  if (!nsplit) { free(b.t); free(start); return; }
+  if (!nsplit) { free(b.t); free(far.t); free(start); free(fstart); free(fn); return; }
   free(mw->tris); mw->tris = b.t; mw->ntris = b.n;
   for (int c = 0; c < mw->nchunks; c++) { mw->chunks[c].tris = b.t + start[c]; mw->chunks[c].ntris = start[c + 1] - start[c]; }
-  free(start);
-  lsd_log("mesh world: %d big triangles split for drawing -> %d triangles", nsplit, mw->ntris);
+  mw->ftris = far.t; mw->nfar = far.n;
+  for (int c = 0; c < mw->nchunks; c++) if (fn[c]) { mw->chunks[c].ftris = far.t + fstart[c]; mw->chunks[c].nfar = fn[c]; }
+  free(start); free(fstart); free(fn);
+  lsd_log("mesh world: %d big triangles split for drawing -> %d triangles (%d unsplit kept for far chunks)", nsplit, mw->ntris, mw->nfar);
 }
 
 int mw_load(MeshWorld *mw, const char *path) {

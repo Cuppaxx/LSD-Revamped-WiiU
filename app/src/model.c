@@ -481,6 +481,7 @@ void models_render(Frame *f, const Cam *cam, const Dream *d, const LAtlas *atlas
     if (ccz < -rad) continue;                                /* behind the camera */
     float ccx = dx * R[0] + dy * R[1] + dz * R[2], ccy = dx * U[0] + dy * U[1] + dz * U[2], zz = ccz > 0 ? ccz : 0;
     if (fabsf(ccx) > zz * halfx + rad * 1.5f || fabsf(ccy) > zz * halfy + rad * 1.5f) continue;   /* outside the view cone */
+    if (ccz > 24.0f && e->radius * sc * cam->focal < 0.5f * ccz) continue;   /* far views: smaller than a pixel (not in the classic 20 tiles) */
     float E[12]; trs_matrix(E, e->p, e->q, e->s);
     int drawn = 0;
     for (int k = 0; k < e->nparts; k++) {

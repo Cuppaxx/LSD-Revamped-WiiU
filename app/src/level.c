@@ -19,7 +19,7 @@ static int pick_texset(int day, unsigned *rng) {
 
 void level_free(Level *lv) {
   for (int i = 0; i < lv->n; i++) lsd_free_chunk(&lv->chunks[i]);
-  free(lv->chunks); free(lv->ox); free(lv->oz);
+  free(lv->chunks); free(lv->ox); free(lv->oz); free(lv->box);
   lsd_free_atlas(&lv->atlas); cw_free(&lv->world); water_free(&lv->water); models_free(); mw_free(&lv->mw); free(lv->live); free(lv->solid_map);
   memset(lv, 0, sizeof *lv);
 }
@@ -107,6 +107,12 @@ int level_load(Level *lv, const DreamList *dl, int index, int day, unsigned *rng
     lv->n++;
   }
   if (!lv->n) return -1;
+  lv->box = (float (*)[6])malloc(sizeof(float) * 6 * (size_t)lv->n);
+  if (lv->box) for (int i = 0; i < lv->n; i++) chunk_bounds(&lv->chunks[i], lv->ox[i], lv->oz[i], lv->box[i], lv->box[i] + 3);
+  { unsigned ti = lsd_ticks(); int nm = 0, nidx = 0, nc = 0, nu = 0;   /* unique tile mesh corners for the projection */
+    for (int i = 0; i < lv->n; i++) for (int k = 0; k < lv->chunks[i].nmesh; k++) { LMesh *m = &lv->chunks[i].mesh[k]; lmesh_index(m); nm++;
+      if (m->uidx) { nidx++; nc += m->ntris * 3; nu += m->nupos; } }
+    lsd_log("tile meshes: %d, %d indexed, %d corners -> %d unique, %u ms", nm, nidx, nc, nu, lsd_ticks() - ti); }
   int nwater_tris = 0; float wxz[2] = {0, 0};
   { char wp[64]; snprintf(wp, sizeof wp, "%s/water.bin", d->folder); size_t wn; uint8_t *wb = lsd_read_file(wp, &wn);
     if (wb) { if (water_load(&lv->water, wb, wn) == 0) for (int i = 0; i < lv->n; i++) water_apply(&lv->chunks[i], &lv->water); free(wb); } }
@@ -164,10 +170,6 @@ void level_render(Frame *f, const Cam *cam, const Level *lv, RenderStats *st) {
     return;
   }
   render_set_water(&lv->water, lv->texset);
-  for (int i = 0; i < lv->n; i++) {
-    float dx = lv->ox[i] + 10 - cam->x, dz = lv->oz[i] + 10 - cam->z;
-    if (dx * dx + dz * dz > (cam->draw_dist + 15) * (cam->draw_dist + 15)) continue;   /* whole chunk out of range */
-    render_chunk(f, cam, &lv->chunks[i], &lv->atlas, lv->ox[i], lv->oz[i], st);
-  }
+  render_chunks(f, cam, lv->chunks, lv->ox, lv->oz, (const float (*)[6])lv->box, lv->n, &lv->atlas, st);   /* boxes vs the view, all render threads */
   if (g_draw_models) models_render(f, cam, lv->dream, &lv->atlas, st);
 }

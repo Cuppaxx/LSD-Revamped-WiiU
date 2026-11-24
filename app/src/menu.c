@@ -8,6 +8,7 @@
 #include "sfx.h"
 #include "input.h"
 #include "flashback.h"
+#include "view.h"
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -171,14 +172,18 @@ enum {   /* item ids */
   I_YES, I_NO, I_ADDL, I_SEP, I_AFFINE, I_FOOT, I_CONTROLS, I_SCHEME, I_DEADZONE, I_RESETBIND,
   I_FLASHBACK, I_JOURNAL, I_SPDAYS, I_INTRO, I_CREDITS,   /* flashback.c, journal.c, special.c */
   I_CAT_GAME, I_CAT_AUDIO, I_CAT_DREAMS,                  /* OPTIONS hub (with I_CONTROLS, I_GFX, I_CREDITS) */
+  I_VCAP, I_VTARGET,                                      /* AUTO view distance: limit, frame rate */
   I_BIND0 = 60, I_DREAM0 = 100
 };
 typedef struct { int id; char label[40]; char value[24]; int slider, smax; /* slider: -1 none, else 0..smax */ const char *hint; char sub[32]; } Item;
 #define MAX_ITEMS MENU_MAXI
 
-static const int dist_vals[] = { 10, 15, 20, 30, 40, 60 };
 static const int res_h[] = { 240, 300, 360, 480 };
-static char s_hint_buf[64];
+static char s_hint_buf[64], s_hint_view[64];
+static void view_label(char *out, size_t n, int c) {
+  if (c == VIEW_AUTO) snprintf(out, n, "AUTO"); else if (c == VIEW_CLASSIC) snprintf(out, n, "CLASSIC");
+  else if (c == VIEW_MAX) snprintf(out, n, "MAX"); else snprintf(out, n, "%d", view_tiles(c));
+}
 
 int menu_frame_w(int aspect) { return aspect ? 426 : 320; }
 
@@ -257,9 +262,21 @@ static int build(const Menu *m, const MenuCtx *c, Item *it) {
       ADD(I_ASPECT, "ASPECT"); VAL("%s", o->aspect ? "16:9" : "4:3"); HINT("16:9 SHOWS MORE TO THE SIDES (SLOWER)");
       ADD(I_SCALE, "SCALING"); VAL("%s", o->scaling == 0 ? "FIT" : o->scaling == 1 ? "INTEGER" : "STRETCH"); HINT("INTEGER = SHARP PIXELS, MAY BE SMALLER");
       ADD(I_SEP, "WORLD");
-      { int k = 0; for (int i = 0; i < 6; i++) if (dist_vals[i] <= o->draw_dist) k = i;
-        ADD(I_DIST, "RENDER DISTANCE"); SLIDE(k, 5); VAL("%d", o->draw_dist); HINT(o->fog ? "TILES. HIGHER = SLOWER; THE FOG STILL ENDS IT" : "TILES. HIGHER = SLOWER"); }
-      ADD(I_FOG, "FOG"); ONOFF(o->fog); HINT("THE DREAM'S FOG (OFF: SEE FURTHER, SLOWER)");
+      { char lb[16]; view_label(lb, sizeof lb, o->view);
+        ADD(I_DIST, "RENDER DISTANCE"); SLIDE(o->view, VIEW_N - 1); VAL("%s", lb);
+        if (o->view == VIEW_AUTO) { if (g_view_now > 0) snprintf(s_hint_view, sizeof s_hint_view, "AS FAR AS %d FPS ALLOWS (NOW %d TILES)", o->vtarget ? 30 : 60, g_view_now);
+                                    else snprintf(s_hint_view, sizeof s_hint_view, "AS FAR AS %d FPS ALLOWS, ADAPTS AS YOU PLAY", o->vtarget ? 30 : 60); }
+        else if (o->view == VIEW_CLASSIC) snprintf(s_hint_view, sizeof s_hint_view, "20 TILES, LIKE THE ORIGINAL");
+        else if (o->view == VIEW_MAX) snprintf(s_hint_view, sizeof s_hint_view, "%d TILES: ALL OF IT, MAY DROP FRAMES", view_tiles(VIEW_MAX));
+        else snprintf(s_hint_view, sizeof s_hint_view, "%d TILES. FURTHER = SLOWER", view_tiles(o->view));
+        HINT(s_hint_view); }
+      if (o->view == VIEW_AUTO) {
+        char lb[16]; view_label(lb, sizeof lb, o->vcap);
+        ADD(I_VCAP, "AUTO LIMIT"); SLIDE(o->vcap - VIEW_CAP_MIN, VIEW_MAX - VIEW_CAP_MIN); VAL("%s", lb); HINT("THE FURTHEST AUTO MAY SEE (TILES)");
+        ADD(I_VTARGET, "AUTO TARGET"); VAL("%s", o->vtarget ? "30 FPS" : "60 FPS"); HINT("60 = SMOOTH, 30 = FURTHER BUT CHOPPIER");
+      }
+      ADD(I_FOG, "FOG"); VAL("%s", o->fogmode == FOG_CLASSIC ? "CLASSIC" : o->fogmode == FOG_SCALED ? "SCALED" : "OFF");
+      HINT(o->fogmode == FOG_CLASSIC ? "THE DREAM'S OWN FOG; THE VIEW ENDS IN IT" : o->fogmode == FOG_SCALED ? "STRETCHED OVER THE VIEW, FADES INTO THE SKY" : "NO FOG: SHARP UP TO THE EDGE OF THE VIEW");
       ADD(I_SKY, "SKY EFFECTS"); ONOFF(o->skyfx); HINT("SUNS, CLOUDS AND STARS");
       ADD(I_MODELS, "OBJECT MODELS"); ONOFF(o->models); HINT("ANIMATED OBJECTS (SCRIPTS STILL RUN)");
       ADD(I_SEP, "PS1 LOOK");
@@ -267,7 +284,7 @@ static int build(const Menu *m, const MenuCtx *c, Item *it) {
       ADD(I_AFFINE, "TEXTURE WARPING"); SLIDE(o->affine, 4); VAL("%d.%02d", o->affine / 4, (o->affine % 4) * 25); HINT("0 = CORRECT, 1 = PS1 AFFINE (0.5 = REVAMPED)");
       ADD(I_SEP, "PERFORMANCE");
       ADD(I_THREADS, "RENDER THREADS"); SLIDE(o->threads - 1, 3); VAL("%d", o->threads); HINT("THE WII U HAS 3 CORES");
-      ADD(I_FPS, "SHOW FPS"); ONOFF(o->show_fps); HINT("THE FRAME RATE IN THE CORNER");
+      ADD(I_FPS, "SHOW FPS"); ONOFF(o->show_fps); HINT("FRAME RATE AND VIEW DISTANCE IN THE CORNER");
       break; }
     case S_CONFIRM_NEW:
       ADD(I_NO, "NO"); HINT("KEEP YOUR JOURNAL");
@@ -327,12 +344,13 @@ static int change(int id, int d) {
     case I_RUN: o->run_mode = !o->run_mode; return 1;
     case I_MUSIC: old = o->music_vol; o->music_vol = clampi(o->music_vol + d, 0, 10); return old != o->music_vol;
     case I_SFX: old = o->sfx_vol; o->sfx_vol = clampi(o->sfx_vol + d, 0, 10); return old != o->sfx_vol;
-    case I_DIST: { int k = 0; for (int i = 0; i < 6; i++) if (dist_vals[i] <= o->draw_dist) k = i;
-      k = clampi(k + d, 0, 5); old = o->draw_dist; o->draw_dist = dist_vals[k]; return old != o->draw_dist; }
+    case I_DIST: old = o->view; o->view = clampi(o->view + d, 0, VIEW_N - 1); return old != o->view;
+    case I_VCAP: old = o->vcap; o->vcap = clampi(o->vcap + d, VIEW_CAP_MIN, VIEW_MAX); return old != o->vcap;
+    case I_VTARGET: o->vtarget = !o->vtarget; return 1;
     case I_RES: old = o->res; o->res = clampi(o->res + d, 0, 3); return old != o->res;
     case I_ASPECT: o->aspect = !o->aspect; return 1;
     case I_SCALE: o->scaling = (o->scaling + (d > 0 ? 1 : 2)) % 3; return 1;
-    case I_FOG: o->fog = !o->fog; return 1;
+    case I_FOG: o->fogmode = (o->fogmode + (d > 0 ? 1 : 2)) % 3; return 1;
     case I_SKY: o->skyfx = !o->skyfx; return 1;
     case I_SNAP: o->snap = !o->snap; return 1;
     case I_MODELS: o->models = !o->models; return 1;
@@ -349,7 +367,7 @@ static int change(int id, int d) {
   return 0;
 }
 static int is_option(int id) { return (id >= I_SENS && id <= I_THREADS && id != I_GFX && id != I_BACK) || id == I_ADDL || id == I_AFFINE ||
-                                      id == I_FOOT || id == I_SCHEME || id == I_DEADZONE || id == I_SPDAYS || id == I_INTRO; }
+                                      id == I_FOOT || id == I_SCHEME || id == I_DEADZONE || id == I_SPDAYS || id == I_INTRO || id == I_VCAP || id == I_VTARGET; }
 static int is_page(int s) { return s == S_GAMEPLAY || s == S_CONTROLS || s == S_AUDIO || s == S_GRAPHICS || s == S_DREAMOPT; }
 
 int menu_nav(Menu *m, int nav, const MenuCtx *c, int *arg) {

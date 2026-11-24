@@ -6,17 +6,19 @@
 connected to Asmik Ace Entertainment, OutSide Directors Company, Osamu Sato, Sony Interactive Entertainment, Nintendo,
 or the LSD: Revamped project. All trademarks belong to their respective owners.
 
-**No original game data is distributed.** This repository and its release builds (`lsdr-app.wuhb`) contain only the
-port's own source code, tools, documentation and screenshots. To play, you build the data folder yourself from your own
-clone of the LSD: Revamped repository (see [docs/DATA.md](docs/DATA.md)); that folder contains material derived from
-LSD: Dream Emulator and must not be redistributed. The README screenshots show the port running for the purpose of
-documenting it.
+**Game data.** The source repository contains only the port's own code, tools, documentation and screenshots. The
+release downloads (`LSD-Revamped-WiiU.zip`) additionally contain game data **converted from the files of the LSD:
+Revamped repository** (MIT licence, Figglewatts and contributors) and the LSDR-Additional-Dreams mod, so the game can be
+played without a conversion step; `lsdr-app.wuhb` is the app alone. That data is derived from *LSD: Dream Emulator*,
+whose levels, textures, music and movies remain the property of their original owners; it is shared here the same way
+LSD: Revamped shares it, as a fan preservation project. If you are a rights holder and want something removed, open an
+issue and it will be taken down. The English text of the special-day diary pages is a translation made for this port.
 
 ## LSD: Dream Emulator (1998)
 
 The original PlayStation game by **OutSide Directors Company**, published by **Asmik Ace Entertainment**, created by
 Osamu Sato and team. Its levels, textures, models, music, sound effects, movies and art (the files the converters read:
-LBD, TIX, TIM, MOM, SEQ/VAB, STR...) are copyrighted by their owners and are **not** included here.
+LBD, TIX, TIM, MOM, SEQ/VAB, STR...) are copyrighted by their owners. They are not stored in the source repository; the release builds contain them in converted form (see above).
 
 ## LSD: Revamped
 

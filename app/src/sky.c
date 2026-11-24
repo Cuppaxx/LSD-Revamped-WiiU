@@ -335,7 +335,7 @@ static void draw_quad(Frame *f, const Cam *cam, const SkyView *vw, const SkyQuad
 void skyfx_band(Frame *f, const Cam *cam, const SkyFx *fx, int y0, int y1) {
   if (!fx || !fx->on) return;
   SkyView vw; cam_basis(cam, vw.R, vw.U, vw.F); vw.cr = cosf(fx->root_yaw); vw.sr = sinf(fx->root_yaw);
-  float cutoff = cam->draw_dist - 1.0f;                        /* main.c: min(draw distance option (20), fog end) + 1 */
+  float cutoff = cam->sky_cut > 0 ? cam->sky_cut : cam->draw_dist - 1.0f;   /* main.c: min(20, fog end), the classic view, whatever the view distance */
   if (cutoff <= 0) cutoff = 20.0f;
   /* queue Background-1: the first sun's rays */
   if (fx->nsun && fx->sun[0].burst) draw_rays(f, cam, &vw, &fx->sun[0], y0, y1);

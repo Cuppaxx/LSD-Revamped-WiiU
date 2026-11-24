@@ -1,6 +1,6 @@
 # Development log
 
-> This is the original, chronological development log of the port (plan, then milestone notes M1-M10), kept almost
+> This is the original, chronological development log of the port (plan, then milestone notes M1-M11), kept almost
 > verbatim. Paths in it refer to the development tree: `src/` and `ref/` were the local clones of LSDRevamped and
 > LSDR-Additional-Dreams, `app/content/data` was a locally converted data folder, `app/shots/` the test screenshots and
 > `app_patches/` / `backup_pre_m10/` temporary folders; none of those are part of this repository. "Cemu only" means a
@@ -171,3 +171,32 @@ Data: `python -I ..\tools\convert.py ..\src content\data --copy --audio` (run fr
 - Shots: before `app/shots/menu2/before/`, after `app/shots/menu2/after/` (4:3 and 16:9: title, hub, every page, scrolled pages, dream select, chart, confirm, pause, pause dream select, button capture dialog, journal 16:9, aspect toggled live, pause at 852x480, touch sequence).
 - Test-hook note: `keys` sequences written for the old menu layout need new key paths (OPTIONS items moved into categories; Dream Select has no heading/BACK rows; L/R switch columns there).
 - Known: touch targets on real GamePad hardware not tested (Cemu maps clicks to touch); the text-day pages and movies remain 320x240 (pillarboxed on 16:9).
+
+## M11 (2026-11-23): far view distances, AUTO distance, scaled fog, faster projection (Cemu only)
+**Options (GRAPHICS > WORLD)**: RENDER DISTANCE 15 / CLASSIC (20 = Revamped's DRAW_DISTANCE) / 30 / 40 / 60 / 80 / 120 / 160 / MAX (256) / AUTO (default). With AUTO two more rows: AUTO LIMIT 40..MAX (default 160) and AUTO TARGET 60 FPS (default) / 30 FPS. FOG is now CLASSIC (the environment's fog, the view never goes past the fog end: the old behaviour) / SCALED (default) / OFF. SHOW FPS shows `60 FPS  AUTO 84` (or `VIEW n`). Footer texts explain each value (AUTO shows the distance it is at now).
+- Save: new keys `view` (choice 0..9), `vcap`, `vtarget`, `fogmode`; `drawdist` and `fog` are no longer written. Old saves: `drawdist 20` (the old default) -> AUTO, any other old value -> the nearest fixed choice (10 -> 15); `fog 0` -> FOG OFF, `fog 1` -> SCALED.
+- `src/view.c` (new): the per-frame distance. AUTO: every 0.5 s m = 0.75 avg + 0.25 max of the frame's render work (project + raster, main-thread wall time); m > 82 % of the budget (16.7 / 33.3 ms) -> target = cur * max(0.6, sqrt(0.72 budget / m)); m < 60 % and frames on time -> up to x1.25; in between nothing (no hunting); frames late although the work fits -> x0.92. The drawn distance eases to the target (40 tiles/s out, 160 in), never below 15 or above the limit (CLASSIC fog: never past the fog end). Each dream load restarts at min(current, 60).
+- SCALED fog (`env_apply_fog(f, env, scale, far, fade)`): start/end x view / min(20, fog end), so the view shows the same fog gradient the classic 20 tiles show; the last quarter of the view fades (same 8-step quantisation) into the horizon colour (skyfog), fully at the view distance, so the far edge never pops while AUTO moves. The 256-entry lookup now covers 0..max(64, 1.05 view + 2) tiles (CLASSIC: 0..max(64, 1.05 fog end), as before). Sky quads keep the classic cutoff min(20, fog end) (`Cam.sky_cut`).
+- Checked: CLASSIC 20 + CLASSIC fog is pixel-identical to the pre-M11 build (Kyoto, same camera; the only differing pixels were the random clouds).
+**Performance**
+- LBD levels: chunk world boxes at load (`chunk_bounds`, rotated tiles + extra chains) tested against distance + view frustum (`box_visible`), the visible chunks (nearest first) projected on all render threads (`render_chunks`, same slot scheme as the mesh worlds). Tile meshes are indexed at load (`lmesh_index`: Natural World 282k corners -> 93k unique): each corner is transformed/projected once per tile (~25 % less projection time at 160 tiles, A/B in one run). The 4 rotation matrices are made once per chunk.
+- Every projected triangle is tested before it is queued (`tri_visible`: |area| < 0.5 or no pixel centre in its box or off screen = exactly what the rasterizer would skip); the attributes (sqrt for the fog distance, uv, colours) are only filled in for triangles that pass. At 160 tiles 60-75 % of the projected triangles end there.
+- Triangle lists: per-band bins filled by list_add (a band walks only its own triangles instead of every triangle), thread lists attached to the frame (`raster_attach`) instead of copied, growth checked (failed realloc / 1M cap = triangle dropped, no crash).
+- Mesh worlds: chunks past 24 tiles draw the triangles as baked (`MChunk.ftris`, kept at load) instead of the load-time split ones (Dreamscape 160 tiles: 110k -> 82k projected triangles, 34 -> 23 ms).
+- Models: entities past 24 tiles smaller than half a pixel are skipped.
+- Hot-path libm calls removed (the 750 has no fsqrt/round instructions, newlib sqrtf/floorf/fminf/fmaxf are calls; sqrtf is a slow software routine): `fsqrt` (frsqrte + 3 Newton steps), `ifloorf/iceilf`, `fmn/fmx` in raster.h. Cemu barely shows it (its JIT makes calls cheap); it should matter more on the console.
+- Tried and dropped: a flat-attribute fast path for 2x2-pixel triangles (no measurable gain in Cemu); distance-based mip sampling (not done: it would change the look inside the classic 20 tiles or need per-texture mip chains; left for later).
+**Cemu numbers** (320x240, 3 threads, fixed camera per dream, SCALED fog, project / raster in us per frame averaged over 1 s; Cemu presents at ~61 fps at most):
+
+| dream | 20 (CLASSIC) | 40 | 80 | 160 | AUTO (settled) |
+|---|---|---|---|---|---|
+| Natural World (60,6,180) | 1426 / 1725 | 2625 / 3144 | 5711 / 4506 | 13240 / 7691 (48 fps) | 84 tiles: 6151 / 5007 |
+| Kyoto (60,12,-5) | 985 / 1249 | 2984 / 4003 | 10966 / 7463 (54 fps) | 17039 / 9556 (38 fps) | 58: 5457 / 5753 |
+| Happytown (60,12,-5) | 873 / 1570 | 3498 / 3854 | 8762 / 6469 | 13335 / 8301 (46 fps) | 58: 6123 / 5337 |
+| Violence District (50,12,-5) | 1159 / 1257 | 1852 / 2951 | 10982 / 6187 (58 fps) | 15962 / 8042 (42 fps) | 58: 6150 / 4592 |
+| Dreamscape (100,6,60) | 1617 / 1873 | 3620 / 3288 | 10446 / 4957 | 22941 / 7494 (33 fps) | 67: 7116 / 4489 |
+| Power Station (0,2,0) | 2426 / 4685 | 2971 / 5038 | 3043 / 5293 | 3090 / 5255 | 160 (limit): 3212 / 5306 |
+| Bright Moon Cottage (10,8,25) | 2388 / 2560 | 2625 / 3061 | 2572 / 2953 | 2626 / 2886 | 160 (limit): 2324 / 2868 |
+
+Before the optimisations (same Natural World camera, first M11 build with only the new options): 160 tiles 18.7-24 ms project, 8-11.5 ms raster, MAX (256) 24-30 / 12 ms; Cemu timing varies by up to ~30 % between runs (other load on the PC), so A/B comparisons were made inside one run where possible. AUTO settled at: Natural World ~84 tiles, Kyoto ~58, Happytown ~58, Violence District ~58, Dreamscape ~67, Power Station and Bright Moon Cottage at the 160 limit (small dreams). The console's per-triangle cost differs from Cemu's JIT (the user's console log showed 1-10 ms projection at 20 tiles), so AUTO will settle elsewhere on hardware: that is its job.
+- Test hooks (start.txt, not shipped): `vdist T:N ...` (from T s a fixed distance of N tiles; 0 = the option, -1 = AUTO), `vfog N` (0 classic, 1 scaled, 2 off). Log line per second now has `work_max`, `view`, `fog`, `tiny` (triangles dropped by the pixel test). Shots: `app/shots/m11/`.

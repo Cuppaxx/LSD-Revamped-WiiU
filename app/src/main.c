@@ -27,6 +27,7 @@
 #include "video.h"
 #include "special.h"
 #include "flashback.h"
+#include "view.h"
 #ifndef LSDR_START_FILE                  /* test builds may rename the test hook / log / shot files so parallel test setups */
 #define LSDR_START_FILE "start.txt"      /* sharing one (emulated) SD card do not read each other's files */
 #endif
@@ -39,6 +40,7 @@
 
 static int test_threads; static float test_tp[3]; static int test_has_tp; static float test_at[2]; static int test_has_at; static float test_daylen; static float test_cam[5]; static int test_has_cam; static int test_day;
 static float test_face; static int test_has_face;
+static int test_nvd, test_vd[16], test_fogmode = -1; static float test_vd_t[16];   /* start.txt "vdist T:N ..." / "vfog N" (view.c) */
 static int test_demo, test_debug; static float test_views[24][6]; static int test_nviews; static float test_affine = -1;
 static int test_nshots, test_shoti; static float test_shot_t[32]; static const char *s_savebase;   /* start.txt "shots T ...": frame dumps to shotN.bmp */
 static int test_nkeys, test_keyi; static float test_key_t[64]; static char test_key[64];   /* start.txt "keys T:K ...": scripted menu input (U D L R A B S=+) at T seconds */          /* start.txt: demo = auto-walk until a controller is touched; debug = X/Y/D-pad debug keys */
@@ -339,6 +341,9 @@ int main(void) {
         if (test_nviews) { test_has_cam = 1; memcpy(test_cam, test_views[0] + 1, sizeof test_cam); } } sscanf(t, "%d", &start_idx); nolink = strstr(t, "nolink") != NULL; start_log = strstr(t, "log") != NULL;
       char *cy = strstr(t, "cycle"); if (cy) cycle_s = (float)atof(cy + 5); char *th = strstr(t, "thread"); if (th) test_threads = atoi(th + 6); char *tp = strstr(t, "tp"); if (tp && sscanf(tp + 2, "%f %f %f", &test_tp[0], &test_tp[1], &test_tp[2]) == 3) test_has_tp = 1; char *at = strstr(t, "at"); if (at && sscanf(at + 2, "%f %f", &test_at[0], &test_at[1]) == 2) test_has_at = 1; if (strstr(t, "grey")) test_grey = 1; char *dlen = strstr(t, "daylen"); if (dlen) test_daylen = (float)atof(dlen + 6);
       char *cm = strstr(t, "cam"); if (cm && sscanf(cm + 3, "%f %f %f %f %f", &test_cam[0], &test_cam[1], &test_cam[2], &test_cam[3], &test_cam[4]) == 5) test_has_cam = 1;
+      char *vdh = strstr(t, "vdist"); if (vdh) { vdh += 5; float vt; int vv, k;   /* vdist T:N ... : from T s a fixed view of N tiles (0 = option, -1 = AUTO) */
+        while (test_nvd < 16 && sscanf(vdh, " %f:%d%n", &vt, &vv, &k) == 2) { test_vd_t[test_nvd] = vt; test_vd[test_nvd++] = vv; vdh += k; } }
+      char *vfg = strstr(t, "vfog"); if (vfg) test_fogmode = atoi(vfg + 4);    /* vfog N: FOG 0 classic, 1 scaled, 2 off */
       char *af = strstr(t, "affine"); if (af) test_affine = (float)atof(af + 6);   /* affine X: texture warping override */
       char *td = strstr(t, "today"); if (td) test_day = atoi(td + 5);
       char *ks = strstr(t, "keys"); if (ks) { ks += 4; float kt; char kc; int k;
@@ -367,22 +372,7 @@ int main(void) {
   static DreamList dl; static Level lv; memset(&lv, 0, sizeof lv);
   unsigned rng = SDL_GetTicks() * 2654435761u + 12345;
   int drc = dreams_load(&dl);
-  if (drc) {                                           /* no game data: the app-only wuhb needs SD:/wiiu/apps/lsdr/data (docs/DATA.md) */
-    lsd_log("dreams.txt failed rc=%d: no game data", drc);
-    static const char *msg[] = { "NO GAME DATA FOUND", "", "THIS PORT DOES NOT INCLUDE ANY GAME DATA.", "BUILD THE DATA FOLDER FROM YOUR OWN COPY",
-                                 "OF LSD: REVAMPED WITH TOOLS/MAKE_DATA.PY", "AND COPY IT TO", "", "SD:/WIIU/APPS/LSDR/DATA/", "",
-                                 "SEE DOCS/DATA.MD.  PRESS HOME TO EXIT." };
-    for (int quit = 0; !quit; ) {
-      SDL_Event e; while (SDL_PollEvent(&e)) if (e.type == SDL_QUIT) quit = 1;
-      raster_clear(mf, 0xFF0C0A24u);
-      for (int k = 0; k < (int)(sizeof msg / sizeof msg[0]); k++) {
-        int sc = k == 0 ? 2 : 1, y = k == 0 ? 50 : 70 + k * 12;
-        ui_text(mf, (MENU_W - ui_text_w(msg[k], sc)) / 2, y, msg[k], k == 0 || k == 7 ? 0xFFFFD040u : 0xFFE0E0FFu, sc);
-      }
-      present(mtex, mf); SDL_Delay(16);
-    }
-    audio_shutdown(); SDL_Quit(); return 0;
-  }
+  if (drc) { lsd_log("dreams.txt failed rc=%d", drc); }
   g_addl_enabled = g_opt.addl;
   lsd_log("dreams: %d original + %d additional (%s)", dl.norig, dl.n - dl.norig, g_addl_enabled ? "on" : "off");
   int day = 1, cur = 0;
@@ -397,7 +387,7 @@ int main(void) {
   sfx_init();                                         /* footsteps, link/fall sounds, the SE bank (audio.txt) */
 
   int manual = 0, fly = 0, show_log = start_log, show_map = 0; float lx = 0, ly = 0, rx = 0, ry = 0;
-  uint64_t us_sky = 0, us_lvl = 0; int nfr = 0; uint32_t last = SDL_GetTicks(), fps_t = last; int fps_n = 0, fps = 0;
+  uint64_t us_sky = 0, us_lvl = 0; int nfr = 0; unsigned last_work_us = 0, us_max = 0; int st_tiny = 0, st_tris = 0; uint32_t last = SDL_GetTicks(), fps_t = last; int fps_n = 0, fps = 0;
   float auto_t = 0, fade = 0; int fade_dir = 0 /* 1 out, -1 in */, pending = -1, go = GO_NONE, run = 1;
   float fade_rgb[3] = {0, 0, 0};
   float fade_rate = 2.5f, fade_in_rate = 2.0f; int fade_blend = BLEND_ALPHA;   /* per-fade speed (1/s) and blend (special.c); reset after each fade */
@@ -718,7 +708,8 @@ int main(void) {
           cur = target; in_menu = 0;
           have_level = level_load(&lv, &dl, cur, fb_active() ? fb_env_day() : day, &rng) == 0;   /* flashback: random environment */
           if (have_level) {
-            s_day = day;                           /* scripts may ask for the day in start() (mesh dreams start at load) */
+            view_new_dream();                      /* AUTO starts low in every dream and climbs */
+            s_day = day;                        /* scripts may ask for the day in start() (mesh dreams start at load) */
             level_spawn(&lv, &pl, day, &rng); script_level((Dream *)lv.dream, &dl, &lv.world); start_music(&lv, song_style, &rng, &dl, day);
             if (fb_active()) fb_after_load(&pl, (Dream *)lv.dream);   /* the recorded spot and facing, the event's entity on */
             level_update_live(&lv); da_level(lv.dream); s_cur_dream = cur;
@@ -750,16 +741,26 @@ int main(void) {
       continue;
     }
 
-    st.tris_drawn = st.tiles_drawn = 0;
+    st.tris_drawn = st.tiles_drawn = st.tris_tiny = 0;
     if (have_level) {
-      cam.draw_dist = (g_opt.fog ? fminf((float)g_opt.draw_dist, lv.env.end) : (float)g_opt.draw_dist) + 1.0f;   /* DreamEnvironment.DRAW_DISTANCE (20) by default, never past the fog end */
+      /* the view distance (view.c: a fixed choice or AUTO) and the fog. CLASSIC: the environment's fog, the view never past
+       * the fog end (DreamEnvironment.DRAW_DISTANCE 20 = RENDER DISTANCE CLASSIC). SCALED: fog start/end stretched by
+       * view / min(20, fog end), so the view shows the same fog gradient as the classic 20 tiles, and the last quarter fades
+       * into the horizon colour (no edge, no popping while AUTO moves). OFF: no fog. */
+      for (int k = 0; k < test_nvd; k++) if (SDL_GetTicks() >= (uint32_t)(test_vd_t[k] * 1000)) view_test_set(test_vd[k]);
+      if (test_fogmode >= 0) g_opt.fogmode = test_fogmode;
+      float vd = view_frame(dt, last_work_us, lv.env.end), e0 = fminf(20.0f, lv.env.end);
+      cam.sky_cut = fmaxf(fminf(e0, vd), 1.0f);       /* the sky quads keep the classic cutoff */
+      if (g_opt.fogmode == FOG_CLASSIC) cam.draw_dist = fminf(vd, lv.env.end) + 1.0f;
+      else cam.draw_dist = vd + 1.0f;
       level_update_live(&lv);
       if (!fade_dir) models_update(dt, lv.dream);   /* animation clocks of the object models */
       skyfx_update(&lv.fx, dt);                        /* sunburst flicker, drifting clouds */
       uint64_t p0 = SDL_GetPerformanceCounter();
       fr->water_time = SDL_GetTicks() * 0.001f;
-      env_apply_fog(fr, &lv.env);
-      if (!g_opt.fog) fr->fog_on = 0;
+      if (g_opt.fogmode == FOG_CLASSIC) env_apply_fog(fr, &lv.env, 1.0f, cam.draw_dist, 0);
+      else if (g_opt.fogmode == FOG_SCALED) env_apply_fog(fr, &lv.env, vd / fmaxf(e0, 1.0f), vd, 1);
+      else fr->fog_on = 0;
       level_render(fr, &cam, &lv, &st);
       if (gm.on && have_grey) render_mesh(fr, &cam, &grey_mesh, gm.x, gm.y, gm.z, gm.yaw, &st);                      /* transform + clip + project into the triangle lists */
       uint64_t p1 = SDL_GetPerformanceCounter();
@@ -768,6 +769,8 @@ int main(void) {
       if (fb_active()) fb_tint(fr);                          /* FlashbackImageEffect: +0.4 on the 3D frame */
       uint64_t p2 = SDL_GetPerformanceCounter();
       us_sky += (p1 - p0) * 1000000 / SDL_GetPerformanceFrequency(); us_lvl += (p2 - p1) * 1000000 / SDL_GetPerformanceFrequency(); nfr++;
+      last_work_us = (unsigned)((p2 - p0) * 1000000 / SDL_GetPerformanceFrequency());
+      { unsigned w = last_work_us; if (w > us_max) us_max = w; } st_tiny += st.tris_tiny; st_tris += st.tris_drawn;
     } else raster_clear(fr, 0xFF181028u);
 
     int W = fr->w, H = fr->h;
@@ -782,9 +785,11 @@ int main(void) {
     if (fade > 0) sp_fade_apply(fr, fade, fade_rgb, fade_blend);   /* Alpha, Add or Subtract (ToriiFader) */
     char hud[80], a[12], b2[12];
     fmt1(a, sizeof a, pl.x); fmt1(b2, sizeof b2, pl.z);
-    if (g_opt.show_fps) { int sc = H / 240; if (sc < 1) sc = 1; snprintf(hud, sizeof hud, "%d FPS", fps); ui_text(fr, W - 4 * sc - ui_text_w(hud, sc), 4 * sc, hud, 0xFFFFFF60u, sc); }
+    if (g_opt.show_fps) { int sc = H / 240; if (sc < 1) sc = 1;
+      if (have_level) snprintf(hud, sizeof hud, "%d FPS  %s%d", fps, g_opt.view == VIEW_AUTO ? "AUTO " : "VIEW ", g_view_now); else snprintf(hud, sizeof hud, "%d FPS", fps);
+      ui_text(fr, W - 4 * sc - ui_text_w(hud, sc), 4 * sc, hud, 0xFFFFFF60u, sc); }
     if (show_log || show_map) {
-      snprintf(hud, sizeof hud, "FPS %d D%d TRI %d %s DAY %d T%d", fps, cur, st.tris_drawn, fly ? "FLY" : pl.into_wall ? "WALL" : pl.grounded ? "WALK" : "FALL", day, (int)day_left);
+      snprintf(hud, sizeof hud, "FPS %d D%d V%d TRI %d %s DAY %d T%d", fps, cur, g_view_now, st.tris_drawn, fly ? "FLY" : pl.into_wall ? "WALL" : pl.grounded ? "WALK" : "FALL", day, (int)day_left);
       draw_text(fr, 2, 2, hud, 0xFFFFFF00u);
       snprintf(hud, sizeof hud, "X %s Z %s", a, b2);
       draw_text(fr, 2, 9, hud, 0xFF80FF80u);
@@ -801,7 +806,7 @@ int main(void) {
     fps_n++;
     if (now - fps_t >= 1000) { fps = fps_n; fps_n = 0; fps_t = now;
       int mi, md, mt; models_stats(&mi, &md, &mt);
-      lsd_log("fps=%d %dx%d project=%uus raster=%uus tris=%d tiles=%d models=%d/%d (%d tris) pos=%.2f,%.2f,%.2f wall=%d grounded=%d audio_cb=%u voices=%d/%d steps=%d yaw=%.0f pitch=%.0f behind=%.0f", fps, W, H, (unsigned)(us_sky / (nfr ? nfr : 1)), (unsigned)(us_lvl / (nfr ? nfr : 1)), st.tris_drawn, st.tiles_drawn, md, mi, mt, pl.x, pl.y, pl.z, pl.into_wall, pl.grounded, audio_callbacks(), da_voices(), da_sounding(), pl.step_count, pl.yaw * 57.29578f, cam.pitch * 57.29578f, pl.look_behind); us_sky = us_lvl = 0; nfr = 0; }
+      lsd_log("fps=%d %dx%d project=%uus raster=%uus work_max=%uus view=%d fog=%d tris=%d tiny=%d tiles=%d models=%d/%d (%d tris) pos=%.2f,%.2f,%.2f wall=%d grounded=%d audio_cb=%u voices=%d/%d steps=%d yaw=%.0f pitch=%.0f behind=%.0f", fps, W, H, (unsigned)(us_sky / (nfr ? nfr : 1)), (unsigned)(us_lvl / (nfr ? nfr : 1)), us_max, g_view_now, g_opt.fogmode, st_tris / (nfr ? nfr : 1), st_tiny / (nfr ? nfr : 1), st.tiles_drawn, md, mi, mt, pl.x, pl.y, pl.z, pl.into_wall, pl.grounded, audio_callbacks(), da_voices(), da_sounding(), pl.step_count, pl.yaw * 57.29578f, cam.pitch * 57.29578f, pl.look_behind); us_sky = us_lvl = 0; nfr = 0; us_max = 0; st_tiny = st_tris = 0; }
   }
   if (!in_menu && have_level && g_save.has_game) g_save.day = day;   /* leaving mid-day keeps the day (no progress), plus options and visited dreams */
   save_write();

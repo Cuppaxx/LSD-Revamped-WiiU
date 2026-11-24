@@ -4,7 +4,7 @@
 Usage (from anywhere; Windows, Linux and macOS):
   python app/build.py                      app-only build -> build/lsdr-app.wuhb (NO game data inside: distributable)
   python app/build.py --data PATH/data     personal build -> build/lsdr.wuhb with your converted data folder bundled
-                                           (contains original game data: never share that file)
+                                           (contains converted game data, like the release)
 Options:
   --out DIR      output directory (default: <repo>/build)
   --name NAME    output file name without extension (default: lsdr-app / lsdr)
@@ -34,7 +34,7 @@ def die(msg):
 
 def main():
     ap = argparse.ArgumentParser(description='Build LSD: Revamped for Wii U (.wuhb)')
-    ap.add_argument('--data', help='a converted data folder (named "data") to bundle into the wuhb (personal use only)')
+    ap.add_argument('--data', help='a converted data folder (named "data") to bundle into the wuhb')
     ap.add_argument('--out', default=os.path.join(ROOT, 'build'))
     ap.add_argument('--name')
     ap.add_argument('--jobs', type=int, default=os.cpu_count() or 4)

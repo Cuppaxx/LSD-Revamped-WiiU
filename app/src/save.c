@@ -34,13 +34,17 @@ void save_defaults(SaveData *s) {
   s->version = 1; s->day = 1; s->last_dream = -1;
   s->opt.look_sens = 5; s->opt.invert_y = 0; s->opt.head_bob = 1; s->opt.run_mode = 0;
   s->opt.music_vol = 6; s->opt.sfx_vol = 7; s->opt.threads = 3;
-  s->opt.draw_dist = 20; s->opt.res = 0; s->opt.aspect = 0; s->opt.scaling = 0;
-  s->opt.fog = 1; s->opt.skyfx = 1; s->opt.snap = 1; s->opt.models = 1; s->opt.show_fps = 0; s->opt.addl = 1; s->opt.affine = 2;
+  s->opt.view = VIEW_AUTO; s->opt.vcap = VIEW_160; s->opt.vtarget = 0; s->opt.fogmode = FOG_SCALED;
+  s->opt.res = 0; s->opt.aspect = 0; s->opt.scaling = 0;
+  s->opt.skyfx = 1; s->opt.snap = 1; s->opt.models = 1; s->opt.show_fps = 0; s->opt.addl = 1; s->opt.affine = 2;
   s->opt.scheme = 0; s->opt.deadzone = 3; s->opt.footsteps = 1; input_default_bindings(s->opt.bind);
   s->opt.specialdays = 1; s->opt.intro = 1;
 }
 
 static int clampi(int v, int lo, int hi) { return v < lo ? lo : v > hi ? hi : v; }
+
+static const int s_view_tiles[VIEW_N] = { 15, 20, 30, 40, 60, 80, 120, 160, 256, 0 };
+int view_tiles(int choice) { return choice >= 0 && choice < VIEW_N ? s_view_tiles[choice] : 20; }
 
 int save_serialize(const SaveData *s, char *out, int cap) {
   int n = 0;
@@ -56,8 +60,8 @@ int save_serialize(const SaveData *s, char *out, int cap) {
   for (int i = 0; i < s->nhist; i++) PUT(" %d,%d", s->hist[i][0], s->hist[i][1]);
   PUT("\nsens %d\ninvert %d\nbob %d\nrun %d\nmusic %d\nsfx %d\nthreads %d\n", s->opt.look_sens, s->opt.invert_y, s->opt.head_bob,
       s->opt.run_mode, s->opt.music_vol, s->opt.sfx_vol, s->opt.threads);
-  PUT("drawdist %d\nres %d\naspect %d\nscaling %d\nfog %d\nskyfx %d\nsnap %d\nmodels %d\nfps %d\n", s->opt.draw_dist, s->opt.res,
-      s->opt.aspect, s->opt.scaling, s->opt.fog, s->opt.skyfx, s->opt.snap, s->opt.models, s->opt.show_fps);
+  PUT("view %d\nvcap %d\nvtarget %d\nfogmode %d\nres %d\naspect %d\nscaling %d\nskyfx %d\nsnap %d\nmodels %d\nfps %d\n", s->opt.view, s->opt.vcap,
+      s->opt.vtarget, s->opt.fogmode, s->opt.res, s->opt.aspect, s->opt.scaling, s->opt.skyfx, s->opt.snap, s->opt.models, s->opt.show_fps);
   PUT("addl %d\naffine %d\n", s->opt.addl, s->opt.affine);
   PUT("scheme %d\ndeadzone %d\nfoot %d\nbind", s->opt.scheme, s->opt.deadzone, s->opt.footsteps);
   for (int i = 0; i < SAVE_NBIND; i++) PUT(" %d", s->opt.bind[i]);
@@ -73,7 +77,7 @@ int save_serialize(const SaveData *s, char *out, int cap) {
 int save_parse(SaveData *s, const char *text) {
   save_defaults(s);
   if (strncmp(text, "lsdr-save", 9) != 0) return -1;
-  const char *p = text;
+  const char *p = text; int old_dd = -1, old_fog = -1, has_view = 0, has_fogmode = 0;
   while (*p) {
     const char *eol = strchr(p, '\n'); size_t L = eol ? (size_t)(eol - p) : strlen(p);
     char line[4096]; if (L >= sizeof line) L = sizeof line - 1;
@@ -101,11 +105,15 @@ int save_parse(SaveData *s, const char *text) {
       else if (!strcmp(key, "music") && sscanf(v, "%d", &a) == 1) s->opt.music_vol = clampi(a, 0, 10);
       else if (!strcmp(key, "sfx") && sscanf(v, "%d", &a) == 1) s->opt.sfx_vol = clampi(a, 0, 10);
       else if (!strcmp(key, "threads") && sscanf(v, "%d", &a) == 1) s->opt.threads = clampi(a, 1, 4);
-      else if (!strcmp(key, "drawdist") && sscanf(v, "%d", &a) == 1) s->opt.draw_dist = clampi(a, 5, 60);
+      else if (!strcmp(key, "drawdist") && sscanf(v, "%d", &a) == 1) old_dd = a;     /* before M11: tiles 10..60, see below */
+      else if (!strcmp(key, "view") && sscanf(v, "%d", &a) == 1) { s->opt.view = clampi(a, 0, VIEW_N - 1); has_view = 1; }
+      else if (!strcmp(key, "vcap") && sscanf(v, "%d", &a) == 1) s->opt.vcap = clampi(a, VIEW_CAP_MIN, VIEW_MAX);
+      else if (!strcmp(key, "vtarget") && sscanf(v, "%d", &a) == 1) s->opt.vtarget = clampi(a, 0, 1);
+      else if (!strcmp(key, "fogmode") && sscanf(v, "%d", &a) == 1) { s->opt.fogmode = clampi(a, 0, 2); has_fogmode = 1; }
       else if (!strcmp(key, "res") && sscanf(v, "%d", &a) == 1) s->opt.res = clampi(a, 0, 3);
       else if (!strcmp(key, "aspect") && sscanf(v, "%d", &a) == 1) s->opt.aspect = clampi(a, 0, 1);
       else if (!strcmp(key, "scaling") && sscanf(v, "%d", &a) == 1) s->opt.scaling = clampi(a, 0, 2);
-      else if (!strcmp(key, "fog") && sscanf(v, "%d", &a) == 1) s->opt.fog = a != 0;
+      else if (!strcmp(key, "fog") && sscanf(v, "%d", &a) == 1) old_fog = a != 0;     /* before M11: the FOG on/off toggle */
       else if (!strcmp(key, "skyfx") && sscanf(v, "%d", &a) == 1) s->opt.skyfx = a != 0;
       else if (!strcmp(key, "snap") && sscanf(v, "%d", &a) == 1) s->opt.snap = a != 0;
       else if (!strcmp(key, "models") && sscanf(v, "%d", &a) == 1) s->opt.models = a != 0;
@@ -139,6 +147,13 @@ int save_parse(SaveData *s, const char *text) {
     if (!eol) break;
     p = eol + 1;
   }
+  /* saves from before M11: an explicitly chosen render distance (anything but the old default 20) becomes the nearest fixed
+   * choice; the old default gets the new default (AUTO). FOG OFF stays off; FOG ON gets the new default (SCALED) */
+  if (!has_view && old_dd >= 0 && old_dd != 20) {
+    int best = VIEW_15; for (int c = VIEW_15; c <= VIEW_MAX; c++) if (abs(view_tiles(c) - old_dd) < abs(view_tiles(best) - old_dd)) best = c;
+    s->opt.view = best;
+  }
+  if (!has_fogmode && old_fog == 0) s->opt.fogmode = FOG_OFF;
   return 0;
 }
 

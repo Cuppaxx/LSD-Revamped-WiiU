@@ -20,10 +20,11 @@ software PS1-style renderer.
 
 </div>
 
-> [!IMPORTANT]
-> **This repository contains no game data.** You build the data yourself from your own clone of the LSD: Revamped
-> repository with one command ([docs/DATA.md](docs/DATA.md)). Fan project, not affiliated with the rights holders
-> ([disclaimer](THIRD_PARTY.md#disclaimer)).
+> [!TIP]
+> **Just want to play?** Download **`LSD-Revamped-WiiU.zip`** from the [latest release](../../releases/latest), extract it
+> to the root of your Wii U SD card, and launch it from the Wii U Menu. Everything is inside: all 28 dreams, the
+> movies, the English story text. See [Quick install](#-quick-install).
+> Fan project, not affiliated with the rights holders ([disclaimer](THIRD_PARTY.md#disclaimer)).
 
 ---
 
@@ -46,9 +47,14 @@ software PS1-style renderer.
   (MJPEG movies from the SD card), the **journal** screen and the **credits** roll.
 - 🖥️ **Menus**: boot splash, title, pause, dream select, dream chart, an options hub (gameplay, controls, audio,
   graphics, dreams), 4:3 and 16:9.
-- ⚙️ **Graphics options**: render distance (10-60 tiles), internal resolution (240-480 lines), 4:3 / 16:9, fit /
-  integer / stretch scaling, fog, sky effects, vertex snapping, texture warping 0-1, object models, render threads,
-  FPS counter.
+- 🔭 **Far render distance**: see up to **160 tiles** (MAX: 256) instead of Revamped's 20. The default **AUTO** mode
+  raises and lowers the distance live to hold 60 fps, with **scaled fog** so the whole view keeps the PS1 look and
+  nothing pops at the edge. See [Far views](#-far-views).
+- ⚙️ **Graphics options**: render distance (15 to MAX, or AUTO), fog (classic / scaled / off), internal resolution
+  (240-480 lines), 4:3 / 16:9, fit / integer / stretch scaling, sky effects, vertex snapping, texture warping 0-1,
+  object models, render threads, FPS counter.
+- 🌐 **English story and dialogue**: the Japanese special-day diary texts are translated; level textures stay
+  original.
 - 💾 **Save file** with options, journal progress, chart history and recorded memories (`SD:/wiiu/apps/lsdr/save.txt`).
 
 ## 📸 Screenshots
@@ -92,6 +98,16 @@ Temple Dojo, Flesh Tunnels, Clockwork Machines, Long Hallway, Sun Faces Bridge, 
 <img src="docs/img/sheet_addl.png" alt="Additional Dreams" width="100%">
 <sub>Baked from the LSDR-Additional-Dreams mod (textures by Royalty3D, catmilk, sphere and Bor).</sub>
 </details>
+
+### 🔭 Far views
+
+<div align="center">
+
+<img src="docs/img/m11/sheet_m11.png" alt="Render distance: classic 20 tiles vs AUTO vs MAX" width="100%">
+<sub>Same camera, left to right: Revamped's classic 20 tiles, **AUTO** (what it settled at in Cemu, 58 to 160 tiles
+depending on the dream) and **MAX** 256 tiles.</sub>
+
+</div>
 
 ### 🌌 Menus
 
@@ -141,24 +157,37 @@ scaled 2x without filtering).</sub>
 
 You need a Wii U with the [Aroma](https://aroma.foryour.cafe/) homebrew environment and an SD card.
 
-1. Download `lsdr-app.wuhb` from the [Releases](../../releases) page (or [build it](#-building)).
-2. Build the **data folder** from your own copy of LSD: Revamped ([docs/DATA.md](docs/DATA.md)):
-   ```sh
-   git lfs install
-   git clone https://github.com/Figglewatts/LSDRevamped.git
-   git clone https://github.com/Figglewatts/LSDR-Additional-Dreams.git      # optional, 14 more dreams
-   python tools/make_data.py --revamped LSDRevamped --addl LSDR-Additional-Dreams --out build/data --movies
+1. Download **`LSD-Revamped-WiiU.zip`** (about 330 MB) from the [latest release](../../releases/latest).
+2. **Extract it into the root of your SD card.** It adds two things:
    ```
-3. Copy to the SD card:
+   SD:/wiiu/apps/lsdr.wuhb          the game (app + all dream data + English text)
+   SD:/wiiu/apps/lsdr/data/MOVIE/   the FMV movies (opening, special days, ending)
    ```
-   SD:/wiiu/apps/lsdr-app.wuhb
-   SD:/wiiu/apps/lsdr/data/        <- the contents of build/data (dreams.txt, STG00 ... STG13, ADD00 ..., MOVIE/ ...)
-   ```
-4. Start **LSD Revamped (Wii U)** from the Wii U Menu. The save file appears at `SD:/wiiu/apps/lsdr/save.txt`.
+3. Start **LSD Revamped (Wii U)** from the Wii U Menu. Your save file appears at `SD:/wiiu/apps/lsdr/save.txt`.
 
-Without a data folder the app shows a *NO GAME DATA FOUND* screen:
+That is all: no conversion, no extra downloads. Playing in **Cemu**? Extract the same zip into Cemu's emulated SD card
+folder (`<Cemu>/sdcard/`) and launch the `.wuhb`.
 
-<p align="center"><img src="docs/img/menus/no_data.png" alt="No game data screen" width="420"></p>
+<details>
+<summary><b>Other downloads and building it yourself</b></summary>
+<br>
+
+- **`lsdr-app.wuhb`** (1.2 MB) is the app alone, without game data. It shows a *NO GAME DATA FOUND* screen until you
+  put a converted data folder at `SD:/wiiu/apps/lsdr/data/` (see [docs/DATA.md](docs/DATA.md)). Useful if you want to
+  build the data from your own clone of [LSD: Revamped](https://github.com/Figglewatts/LSDRevamped):
+  ```sh
+  git lfs install
+  git clone https://github.com/Figglewatts/LSDRevamped.git
+  git clone https://github.com/Figglewatts/LSDR-Additional-Dreams.git
+  python tools/make_data.py --revamped LSDRevamped --addl LSDR-Additional-Dreams --out build/data --movies
+  python app/build.py --data build/data     # all-in-one .wuhb, like the release
+  ```
+- The code is MIT. The game data in the release comes from LSD: Revamped (MIT) and the Additional Dreams mod; see
+  [THIRD_PARTY.md](THIRD_PARTY.md).
+
+</details>
+
+<p align="center"><img src="docs/img/menus/no_data.png" alt="No game data screen (app-only build)" width="360"></p>
 
 ## 🎮 Controls
 
@@ -221,13 +250,36 @@ its shaders (classic PS1 shader, fog, sky), and loads the original PS1 formats t
 Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full tour and [docs/DEVLOG.md](docs/DEVLOG.md) for the
 milestone-by-milestone development log.
 
+## 🔭 Far views
+
+Revamped draws 20 tiles. The Wii U build can go much further, so the draw distance is an option
+(*Options > Graphics > World*):
+
+| Setting | Values |
+|---|---|
+| **Render distance** | 15, CLASSIC (20), 30, 40, 60, 80, 120, 160, MAX (256), **AUTO** (default) |
+| **Auto limit / target** | shown with AUTO: upper limit (40 to MAX, default 160) and 60 or 30 fps target |
+| **Fog** | CLASSIC (fog ends the view, as before), **SCALED** (default: the classic fog gradient stretched over the whole view, the last quarter fades into the horizon), OFF |
+
+**AUTO** measures the frame's render work twice a second and eases the distance in or out to stay inside the frame
+budget, so small dreams show everything (160 tiles) while big, dense ones settle lower, and a heavy scene on a slower
+console just settles nearer instead of dropping frames. `CLASSIC` distance with `CLASSIC` fog is pixel-identical to
+Revamped's look.
+
+What made it affordable: per-chunk bounding boxes tested against distance and view frustum, projection on all render
+threads, indexed tile meshes (each corner projected once), triangles that cannot cover a pixel dropped before they are
+queued (60-75 % of them at 160 tiles), per-band triangle bins, and hand-written replacements for the slow `sqrtf` /
+`floorf` library calls (the Wii U CPU has no hardware square root). Numbers and details: [docs/DEVLOG.md](docs/DEVLOG.md)
+(M11).
+
 ## ⚡ Performance
 
-- **Wii U:** console logs (`log.txt`) showed roughly **55 to 230 fps** at the default 320x240, depending on the dream
-  and view. Higher internal resolutions, 16:9 and long render distances cost fill rate; *Options > Graphics > Render
-  threads* and *Show FPS* help tuning.
-- **Cemu:** about 60 fps (the frame cap) in every dream at 320x240 with 3 render threads; projection + raster
-  peak at about 13 ms per frame in the heaviest mod dreams (Power Station, Concretorium).
+- **Wii U:** console logs (`log.txt`) showed roughly **55 to 230 fps** at the default 320x240 and the classic 20 tiles
+  (before the far-view work), depending on the dream. The far-view code is tested in Cemu only: AUTO should settle
+  nearer than in Cemu on the console, which is what it is for. Higher internal resolutions and 16:9 cost fill rate;
+  *Render threads* and *Show FPS* help tuning.
+- **Cemu:** about 60 fps (the frame cap) in every dream at 320x240 with 3 render threads and AUTO. At a fixed 160 tiles
+  the heaviest views (Dreamscape, Kyoto) fall to 33 to 38 fps, which is why AUTO exists.
 
 ## 🧭 Known limitations / roadmap
 
@@ -237,39 +289,39 @@ milestone-by-milestone development log.
 - Mod-dream particles (steam, drips) are not drawn; transparent triangles are not depth-sorted.
 - Colliders of moving objects stay at their prefab position; the mixer has no ducking compressor like Revamped's.
 - Revamped's alternative "Revamped" song library is not converted (the original soundtrack is used).
-- Text days show the original Japanese pages unless you provide an English text file (`--texts-en`, see
-  [docs/DATA.md](docs/DATA.md#english-text-days)).
 - Text and movie pages are 320x240 (pillarboxed in 16:9).
+- Far views (AUTO / 160+ tiles) are verified in Cemu, not yet on hardware. FOG OFF has a hard edge at the view distance.
 - Roadmap: hardware test pass, particles, depth-sorted transparency, performance work for 480-line modes.
 
 ## ❓ FAQ
 
 <details>
-<summary><b>Where do I get the game data?</b></summary>
+<summary><b>Where is the game data?</b></summary>
 
-From the LSD: Revamped repository, which you clone yourself (with git-lfs) and convert with `tools/make_data.py`. The
-data is not hosted here and must not be shared. See [docs/DATA.md](docs/DATA.md).
+Inside the release. `LSD-Revamped-WiiU.zip` contains the converted data of LSD: Revamped (MIT) and the Additional
+Dreams mod, bundled into `lsdr.wuhb`, plus the movies. If you prefer, you can convert it yourself from your own clone
+with `tools/make_data.py` ([docs/DATA.md](docs/DATA.md)).
 </details>
 
 <details>
 <summary><b>Can I just download a .wuhb with everything inside?</b></summary>
 
-No. Releases are app-only. You can build an all-in-one file for yourself with `python app/build.py --data build/data`,
-but it contains game data and must stay private.
+Yes: that is `lsdr.wuhb` in the release zip. The only separate part is the `MOVIE` folder, which is read from the SD
+card (about 260 MB).
 </details>
 
 <details>
 <summary><b>Does it run in Cemu?</b></summary>
 
-Yes, that is where most development and testing happened. Put the data folder in Cemu's emulated SD card
-(`<Cemu>/sdcard/wiiu/apps/lsdr/data/`).
+Yes, that is where most development and testing happened. Extract the release zip into Cemu's emulated SD card
+(`<Cemu>/sdcard/`) and launch the `.wuhb`.
 </details>
 
 <details>
 <summary><b>The movies do not play.</b></summary>
 
-Movies are optional and are only read from the SD card: build them with `--movies` and make sure
-`SD:/wiiu/apps/lsdr/data/MOVIE/*.mjv` exists. The intro can be switched off in Options > Dreams.
+Movies are read from the SD card: make sure `SD:/wiiu/apps/lsdr/data/MOVIE/*.mjv` exists (the release zip puts
+them there). The intro can be switched off in Options > Dreams.
 </details>
 
 <details>

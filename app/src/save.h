@@ -16,11 +16,14 @@ typedef struct {
   int sfx_vol;          /* 0..10 */
   /* graphics */
   int threads;          /* rasterizer threads 1..4 */
-  int draw_dist;        /* render distance in tiles (20 = the original DRAW_DISTANCE); the fog end still limits it while fog is on */
+  int view;             /* RENDER DISTANCE choice (view_tiles): 15, 20 = CLASSIC (the original DRAW_DISTANCE), 30 .. 160, MAX, AUTO (default) */
+  int vcap;             /* AUTO: the furthest it may go (a choice VIEW_CAP_MIN..VIEW_MAX, default 160) */
+  int vtarget;          /* AUTO: the frame rate it holds, 0 = 60 fps (default), 1 = 30 fps */
+  int fogmode;          /* FOG: 0 CLASSIC (environment values, the view ends at the fog end), 1 SCALED (default: stretched over the view), 2 OFF */
   int res;              /* internal resolution: 0 240 lines (classic), 1 300, 2 360, 3 480 */
   int aspect;           /* 0 4:3, 1 16:9 (wider internal frame, same vertical field of view) */
   int scaling;          /* 0 fit (letterbox, keeps the aspect), 1 integer (pixel perfect), 2 stretch to the whole screen */
-  int fog, skyfx, snap, models, show_fps;   /* toggles */
+  int skyfx, snap, models, show_fps;   /* toggles */
   int affine;           /* texture warping 0..4 = AffineIntensity 0, 0.25, 0.5 (default), 0.75, 1 */
   int addl;             /* the Additional Dreams mod's 14 dreams take part (links, graph, dream select); default on */
   /* controls (M9) */
@@ -33,7 +36,13 @@ typedef struct {
   int intro;            /* opt_intro: the random OPENING movie at boot, default on */
 } Options;
 
-#define SAVE_MAX_SP 256               /* special days seen (journal log), oldest dropped */
+/* RENDER DISTANCE choices (Options.view): 0 15, 1 20 CLASSIC, 2 30, 3 40, 4 60, 5 80, 6 120, 7 160, 8 MAX (256), 9 AUTO */
+enum { VIEW_15, VIEW_CLASSIC, VIEW_30, VIEW_40, VIEW_60, VIEW_80, VIEW_120, VIEW_160, VIEW_MAX, VIEW_AUTO, VIEW_N };
+#define VIEW_CAP_MIN VIEW_40          /* AUTO LIMIT choices: 40 .. MAX */
+enum { FOG_CLASSIC, FOG_SCALED, FOG_OFF };
+int view_tiles(int choice);           /* tiles of a fixed choice (AUTO: 0) */
+
+#define SAVE_MAX_SP 256              /* special days seen (journal log), oldest dropped */
 typedef struct { short year, day; char kind; char asset[7]; } SaveSP;   /* kind 'v' video, 't' text; asset "01A" */
 
 /* one entity graph contribution (DreamSequence entity list, tools/SPECIAL_FORMAT.md section 10): the flashbacks' pool */

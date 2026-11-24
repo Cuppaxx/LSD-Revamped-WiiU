@@ -12,7 +12,7 @@
 typedef struct { float x, y, z; float u, v; uint8_t r, g, b, a; } LVtx;       /* u,v = texel position in the VRAM atlas */
 typedef struct { LVtx v[3]; uint8_t alpha_blend; uint8_t water; uint16_t mat; } LTri;   /* mat: material of a mesh dream model (amodels.bin; u,v are then 0..1 texture coordinates) */   /* water: 0 = normal, else 1 + water material index (u,v are then water-map texels) */                       /* one triangle, three corners with their own colour/uv */
 
-typedef struct { LTri *tris; int ntris; } LMesh;                               /* one TMD object (one tile shape) */
+typedef struct { LTri *tris; int ntris; float *upos; uint16_t *uidx; int nupos; } LMesh;   /* upos/uidx: unique corner positions and 3 indices per triangle (render.c lmesh_index, LBD levels; NULL elsewhere) */                               /* one TMD object (one tile shape) */
 
 typedef struct { uint8_t draw, solid, footstep, collision, dir; int16_t height; int extra; uint16_t type; } LTile;
 
