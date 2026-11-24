@@ -1,0 +1,85 @@
+# ---------------------------------------------------------------------------------------------
+# NEVER commit original game data. Everything converted from LSD: Revamped / LSD: Dream Emulator
+# (tools/make_data.py output) stays on your machine and your SD card.
+# ---------------------------------------------------------------------------------------------
+data/
+content/
+**/content/data/
+build/
+out/
+out*/
+tools/out_*/
+stage/
+
+# local clones of LSDRevamped / LSDR-Additional-Dreams used by the converters
+ref/
+/src/
+LSDRevamped/
+LSDR-Additional-Dreams/
+
+# build outputs
+*.o
+*.d
+*.elf
+*.rpx
+*.rpl
+*.wuhb
+*.wua
+
+# original-format assets (if any ever land in the tree by accident)
+*.LBD
+*.lbd
+*.TIX
+*.tix
+*.TIM
+*.tim
+*.SEQ
+*.seq
+*.VAB
+*.vab
+*.VH
+*.VB
+*.MOM
+*.mom
+*.TMD
+*.STR
+*.mjv
+*.webm
+*.ogg
+*.wav
+*.tex
+world.bin
+models.bin
+amodels.bin
+water.bin
+dreams*.txt
+specials.txt
+audio.txt
+
+# runtime / test files from the SD card or Cemu
+save.txt
+save.tmp
+log.txt
+start.txt
+threads.txt
+shot*.bmp
+*.bmp
+
+# raw screenshot dumps (curated README images live in docs/img/)
+shots/
+app/shots/
+*_win.png
+
+# backups, patches, editor and OS clutter
+backup*/
+app_patches/
+*.orig
+*.rej
+*.bak
+__pycache__/
+*.pyc
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
